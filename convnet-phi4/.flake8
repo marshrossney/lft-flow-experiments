@@ -1,0 +1,9 @@
+[flake8]
+exclude = 
+    experiments
+    pyproject.toml
+    poetry.lock
+    .git
+    .venv
+    .nox
+    __pycache__

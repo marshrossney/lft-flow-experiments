@@ -1,0 +1,39 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "convnet_phi4"
+version = "0.1.0"
+description = "Trying to improve results on the simple phi4 theory using convolutional networks in the normalising flow"
+authors = ["marshrossney <17361029+marshrossney@users.noreply.github.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+torch = "^1.11.0"
+pytorch-lightning = "^1.6.3"
+flows = { git = "https://github.com/marshrossney/multilevel-flow-experiments", branch = "basic-multilevel" }
+jsonargparse = "^4.7.2"
+
+[tool.poetry.dev-dependencies]
+black = "^22.3.0"
+flake8 = "^4.0.1"
+pytest = "^7.1.2"
+pyrex = { git = "https://github.com/marshrossney/pyrex.git", branch = "dev" }
+
+[tool.poetry.scripts]
+train = 'convnet_phi4.scripts.main:main'
+
+[tool.black]
+line-length = 79
+target-version = ['py39']
+exclude = '''
+(
+  /(
+      \.git
+    | \.mypy_cache
+    | \.nox
+    | \.venv
+  )/
+)
+'''

@@ -1,0 +1,4 @@
+version: poetry version --short
+experiments_file: "_experiments.yaml"
+experiments_output_path: "{workspace_root}/experiments/{version}"
+experiments_template: "templates/default"

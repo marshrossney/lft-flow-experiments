@@ -1,0 +1,5 @@
+train:
+    files: ["poetry.lock"]
+    commands: ["poetry run train -c {posargs}"]
+    title: Training
+    description: Training a model
