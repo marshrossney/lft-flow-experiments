@@ -12,8 +12,11 @@ authors = ["marshrossney <17361029+marshrossney@users.noreply.github.com>"]
 python = "^3.9"
 torch = "^1.11.0"
 pytorch-lightning = "^1.6.3"
-flows = { git = "https://github.com/marshrossney/multilevel-flow-experiments", branch = "basic-multilevel" }
-jsonargparse = "^4.7.2"
+jsonargparse = {extras = ["signatures"], version = "^4.7.3"}
+ipython = "^8.3.0"
+torchlft = {path = "../../torchlft"}
+matplotlib = "^3.5.2"
+pandas = "^1.4.2"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"

@@ -1,96 +1,96 @@
-from __future__ import annotations
-
-
+from jsonargparse.typing import PositiveInt
 import torch
 import pytorch_lightning as pl
+from pytorch_lightning.utilities.cli import LightningCLI
 
-import flows.phi_four
-import flows.transforms
+from torchlft.distributions import Prior, PhiFourDistributionIsing
+import torchlft.metrics
 
-from convnet_phi4.layers import CouplingLayer, GlobalRescalingLayer
-import convnet_phi4.utils as utils
-
-NonNegativeFloat = float
-IterableDataset = torch.utils.data.IterableDataset
-PositiveInt = int
+from convnet_phi4.flow import RealNVP
 
 
 class Model(pl.LightningModule):
     def __init__(
         self,
-        flow=None,
-        target=None,
+        flow: RealNVP,
+        prior: Prior,
+        target: PhiFourDistributionIsing,
     ):
         super().__init__()
-
-        layers = [
-            CouplingLayer(
-                flows.transforms.PointwiseAffineTransform(),
-                {
-                    "hidden_shape": [2, 2],
-                    "activation": torch.nn.Tanh(),
-                    "final_activation": torch.nn.Identity(),
-                    "use_bias": False,
-                },
-            )
-            for _ in range(2)
-        ]
-        layers.append(GlobalRescalingLayer())
-
-        self.flow = utils.Flow(*layers)
-        self.action = flows.phi_four.PhiFourAction.from_deldebbio2021(
-            beta=0.5, lam=0.5
-        )
-
-        self.curr_iter = 0
+        self.flow = flow
+        self.prior = prior
+        self.target = target
 
     def log_state(self, phi):
         self.logger.experiment.add_histogram(
             "phi", phi.flatten(), self.curr_iter
         )
         self.logger.experiment.add_histogram(
-            "action", self.action(phi).flatten(), self.curr_iter
+            "action", self.target(phi).flatten(), self.curr_iter
         )
 
     def forward(self, batch):
-        z, log_prob_z = batch
-        phi, log_det_jacob = self.flow(z)
-        log_prob_phi = -self.action(phi)
-        weights = log_prob_z - log_det_jacob - log_prob_phi
+        z, log_prob_prior = batch
+        phi, log_prob_model = self.flow(z, log_prob_prior)
+        log_weights = log_prob_model - self.target.log_prob(phi)
+        return phi, log_weights
 
-        self.curr_iter += 1
-        if self.curr_iter % 200 == 0:
-            self.log_state(phi)
-
-        return phi, weights
+    def train_dataloader(self) -> Prior:
+        return self.prior
 
     def training_step(self, batch, batch_idx):
-        _, weights = self.forward(batch)
-        loss = weights.mean()
+        _, log_weights = self.forward(batch)
+        loss = log_weights.mean()
         self.log("loss", loss, logger=True)
         self.lr_schedulers().step()
         return loss
 
+    def val_dataloader(self) -> Prior:
+        return Prior(self.prior.distribution, batch_size=10000)
+
     def validation_step(self, batch, batch_idx):
-        phi, weights = self.forward(batch)
-        loss = weights.mean()
-        acceptance = utils.metropolis_acceptance(weights)
-        metrics = dict(loss=loss, acceptance=acceptance)
+        _, log_weights = self.forward(batch)
+        metrics = torchlft.metrics.LogWeightMetrics(log_weights)
+        metrics_dict = dict(
+            kl=metrics.kl_divergence,
+            acc=metrics.acceptance,
+            r_max=metrics.longest_rejection_run,
+            tau=metrics.integrated_autocorrelation,
+            ess=metrics.effective_sample_size,
+        )
+        return metrics_dict
+
+    def validation_epoch_end(self, metrics):
+        metrics = metrics[0]
         self.log_dict(metrics, prog_bar=False, logger=True)
-        return loss
+
+    def predict_dataloader(self) -> Prior:
+        return Prior(self.prior.distribution, batch_size=10000)
+
+    def predict_step(self, batch, batch_idx):
+        phi, log_weights = self.forward(batch)
+        metrics = torchlft.metrics.LogWeightMetrics(log_weights)
+        metrics_dict = dict(
+            kl=metrics.kl_divergence,
+            acc=metrics.acceptance,
+            r_max=metrics.longest_rejection_run,
+            tau=metrics.integrated_autocorrelation,
+            ess=metrics.effective_sample_size,
+        )
+        return metrics_dict
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.flow.parameters(), lr=0.001)
+        optimizer = torch.optim.Adam(self.flow.parameters(), lr=0.005)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=self.trainer.max_steps
         )
         return [optimizer], [scheduler]
 
     @torch.no_grad()
-    def sample(self, prior: IterableDataset, n_iter: PositiveInt = 1):
-        phi, weights = self.forward(next(prior))
-        for _ in range(n_iter - 1):
-            _phi, _weights = self.forward(next(prior))
+    def sample(self, n_batches: PositiveInt = 1):
+        phi, log_weights = self.forward(self.train_dataloader())
+        for _ in range(n_batches - 1):
+            _phi, _log_weights = self.forward(next(self.prior))
             phi = torch.cat((phi, _phi), dim=0)
-            weights = torch.cat((weights, _weights), dim=0)
-        return phi, weights
+            log_weights = torch.cat((log_weights, _log_weights), dim=0)
+        return phi, log_weights

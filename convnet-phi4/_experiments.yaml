@@ -1,5 +1,12 @@
-train:
-    files: ["poetry.lock"]
-    commands: ["poetry run train -c {posargs}"]
-    title: Training
-    description: Training a model
+conv:
+    files: [runcards/conv.yaml]
+    commands: ["poetry run train -c runcards/conv.yaml"]
+    title: Training a convolutional model
+    description: Training a convolutional model
+    output_path: "{workspace_root}/experiments/{version}/conv/"
+dense:
+    files: [runcards/dense.yaml]
+    commands: ["poetry run train -c runcards/dense.yaml"]
+    title: Training a fully-connected model
+    description: Training a fully-connected model
+    output_path: "{workspace_root}/experiments/{version}/dense/"
