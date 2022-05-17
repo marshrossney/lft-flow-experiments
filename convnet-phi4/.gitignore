@@ -2,3 +2,4 @@ experiments/
 runcards/
 lightning_logs/
 testing/
+.ipynb_checkpoints/
