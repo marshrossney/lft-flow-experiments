@@ -18,6 +18,7 @@ torchlft = {path = "../../torchlft"}
 matplotlib = "^3.5.2"
 pandas = "^1.4.2"
 jupyterlab = "^3.4.2"
+nb-black = "^1.0.7"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
